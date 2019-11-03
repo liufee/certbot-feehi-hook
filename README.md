@@ -40,8 +40,12 @@ DNS服务商密钥获取
 
 使用方式
 ---------------
->为了方便展示，以下shell命令安装均做了变形处理，如执行失败，请手动去掉换行符，将命令调整为单行
->以下示例命令均为dns解析在阿里云的，如果为腾讯云请将所有--type=aliyun换成--type=qcloud，--ali_AccessKey_ID=阿里云ACCESS_KEY_ID换成--qcloud_SecretId=腾讯云secretId,--qcloud_SecretKey=腾讯云secretKey
+>为了方便展示，以下shell命令安装均做了变形处理，如执行失败，请手动去掉换行符，将命令调整为单行  
+
+>以下示例命令均为dns解析在阿里云的，如果为腾讯云请将所有  
+--type=aliyun换成--type=qcloud  
+--ali_AccessKey_ID=阿里云ACCESS_KEY_ID 换成 --qcloud_SecretId=腾讯云secretId  
+--ali_Access_Key_Secret=阿里云ACCESS_KEY_SECRET 换成 --qcloud_SecretKey=腾讯云secretKey  
 
 1. 直接使用  
     1.1 安装certbot
