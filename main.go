@@ -9,16 +9,20 @@ import (
 	"time"
 )
 
-const ver = "1.0.0"
+const ver = "2.0.0"
 
 var (
 	h = flag.Bool("h", false, "This help")
 	v = flag.Bool("v", false, "Show certbot-feehi-hook version")
 
-	providerType = flag.String("type", "", "Your dns provider. Current support aliyun")
+	providerType = flag.String("type", "", "Your dns provider. Current support aliyun, qcloud")
 	action       = flag.String("action", "", "add or delete. manual-auth-hook use add, manual-cleanup-hook use delete")
+
 	aliyunKey    = flag.String("ali_AccessKey_ID", "", "aliyun access id")
 	aliyunSecret = flag.String("ali_Access_Key_Secret", "", "aliyun access key secret")
+
+	qcloudKey    = flag.String("qcloud_SecretId", "", "qcloud SecretId")
+	qcloudSecret = flag.String("qcloud_SecretKey", "", "qcloud SecretKey")
 )
 
 var validationKey string
@@ -41,6 +45,8 @@ func main() {
 	switch *providerType {
 	case "aliyun":
 		p = providers.NewAliyun(domain, *aliyunKey, *aliyunSecret)
+	case "qcloud":
+		p = providers.NewQcloud(domain, *qcloudKey, *qcloudSecret)
 	default:
 		if *providerType == "" {
 			panic("--type must be your dns provider type, such as aliyun qcloud")

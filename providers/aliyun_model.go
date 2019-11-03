@@ -1,5 +1,11 @@
 package providers
 
+type aliyunResult struct {
+	RequestId string
+	Code      string
+	Message   string
+}
+
 type aliyunGetRecordsResult struct {
 	PageNumber    int
 	TotalCount    int

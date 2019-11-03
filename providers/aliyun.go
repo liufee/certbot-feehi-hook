@@ -7,6 +7,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log"
 	"math/rand"
 	"net/url"
@@ -18,14 +19,6 @@ import (
 
 const aliBaseUrl = "http://alidns.aliyuncs.com"
 
-var threePointDomains = []string{
-	".gov.cn",
-	".net.cn",
-	".com.cn",
-	".org.cn",
-	".co.uk",
-}
-
 func NewAliyun(domain, aliKey, aliSecret string) *Aliyun {
 	if aliKey == "" {
 		panic("ali_AccessKey_ID must be passed")
@@ -33,7 +26,7 @@ func NewAliyun(domain, aliKey, aliSecret string) *Aliyun {
 	if aliSecret == "" {
 		panic("ali_Access_Key_Secret must be passed")
 	}
-	domain, levelsDomainName := ParseDomain(domain)
+	domain, levelsDomainName := utils.ParseDomain(domain)
 	return &Aliyun{
 		DomainName:       domain,
 		LevelsDomainName: levelsDomainName,
@@ -47,23 +40,6 @@ type Aliyun struct {
 	AppSecret        string
 	DomainName       string
 	LevelsDomainName string
-}
-
-func (a *Aliyun) GetRecords() (aliyunGetRecordsResult, error) {
-	var result aliyunGetRecordsResult
-	businessParams := map[string]string{
-		"Action":   "DescribeDomainRecords",
-		"PageSize": "100",
-	}
-	body, err := a.Do(businessParams)
-	if err != nil {
-		return result, err
-	}
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		return result, err
-	}
-	return result, nil
 }
 
 func (a *Aliyun) ResolveDomainName(dnsType string, RR string, value string) (bool, error) {
@@ -100,12 +76,29 @@ func (a *Aliyun) DeleteResolveDomainName(dnsType string, RR string) (bool, error
 	if record != nil {
 		result, err := a.DeleteRecord(record.RecordId)
 		if err != nil {
-			return false, nil
+			return false, err
 		}
 		return result, nil
 	}
 	log.Println("Dns record not exists")
 	return false, nil
+}
+
+func (a *Aliyun) GetRecords() (aliyunGetRecordsResult, error) {
+	var result aliyunGetRecordsResult
+	businessParams := map[string]string{
+		"Action":   "DescribeDomainRecords",
+		"PageSize": "100",
+	}
+	body, err := a.Do(businessParams)
+	if err != nil {
+		return result, err
+	}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return result, err
+	}
+	return result, nil
 }
 
 func (a *Aliyun) AddRecord(dnsType string, RR string, value string) (bool, error) {
@@ -115,9 +108,17 @@ func (a *Aliyun) AddRecord(dnsType string, RR string, value string) (bool, error
 		"RR":     RR,      //www
 		"Value":  value,   //8.8.8.8
 	}
-	_, err := a.Do(businessParams)
+	body, err := a.Do(businessParams)
 	if err != nil {
 		return false, err
+	}
+	var b aliyunResult
+	err = json.Unmarshal(body, &b)
+	if err != nil {
+		return false, err
+	}
+	if b.Code != "" {
+		return false, errors.New(b.Code + ":" + b.Message)
 	}
 	return true, nil
 }
@@ -130,9 +131,17 @@ func (a *Aliyun) UpdateRecord(dnsType string, RR string, value string, recordId 
 		"Value":    value,   //8.8.8.8
 		"RecordId": recordId,
 	}
-	_, err := a.Do(businessParams)
+	body, err := a.Do(businessParams)
 	if err != nil {
 		return false, err
+	}
+	var b aliyunResult
+	err = json.Unmarshal(body, &b)
+	if err != nil {
+		return false, err
+	}
+	if b.Code != "" {
+		return false, errors.New(b.Code + ":" + b.Message)
 	}
 	return true, nil
 }
@@ -142,9 +151,17 @@ func (a *Aliyun) DeleteRecord(recordId string) (bool, error) {
 		"Action":   "DeleteDomainRecord",
 		"RecordId": recordId,
 	}
-	_, err := a.Do(businessParams)
+	body, err := a.Do(businessParams)
 	if err != nil {
 		return false, err
+	}
+	var b aliyunResult
+	err = json.Unmarshal(body, &b)
+	if err != nil {
+		return false, err
+	}
+	if b.Code != "" {
+		return false, errors.New(b.Code + ":" + b.Message)
 	}
 	return true, nil
 }
@@ -212,49 +229,4 @@ func (a *Aliyun) GetRecordByTypeAndPr(tp, RR string) (*aliyunRecord, error) {
 		}
 	}
 	return nil, nil
-}
-
-func ParseDomain(domain string) (rootDomain, levelsDomain string) {
-	rootDomain = ""
-	levelsDomain = ""
-	dotNum := strings.Count(domain, ".")
-	if dotNum < 1 {
-		log.Fatalln("Domain format error")
-	}
-	if dotNum == 1 {
-		rootDomain = domain
-		return
-	}
-
-	var t = 0
-	var dotTime = 2
-	for _, item := range threePointDomains {
-		if strings.HasSuffix(domain, item) {
-			dotTime = 3
-			break
-		}
-	}
-	for i := len(domain) - 1; i > -1; i-- {
-		char := domain[i]
-		if char == byte('.') {
-			t++
-		}
-		if t < dotTime {
-			rootDomain += string(char)
-		} else {
-			levelsDomain += string(char)
-		}
-	}
-	rootDomain = reverseString(rootDomain)
-	levelsDomain = reverseString(levelsDomain)
-	levelsDomain = strings.TrimRight(levelsDomain, ".")
-	return
-}
-
-func reverseString(s string) string {
-	runes := []rune(s)
-	for from, to := 0, len(runes)-1; from < to; from, to = from+1, to-1 {
-		runes[from], runes[to] = runes[to], runes[from]
-	}
-	return string(runes)
 }
