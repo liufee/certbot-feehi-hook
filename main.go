@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"time"
 )
@@ -12,8 +13,9 @@ import (
 const ver = "2.0.0"
 
 var (
-	h = flag.Bool("h", false, "This help")
-	v = flag.Bool("v", false, "Show certbot-feehi-hook version")
+	h       = flag.Bool("h", false, "This help")
+	v       = flag.Bool("v", false, "Show certbot-feehi-hook version")
+	logFile = flag.String("log", "/tmp/cert-book-feehi-log.txt", "log file")
 
 	providerType = flag.String("type", "", "Your dns provider. Current support aliyun, qcloud")
 	action       = flag.String("action", "", "add or delete. manual-auth-hook use add, manual-cleanup-hook use delete")
@@ -23,6 +25,8 @@ var (
 
 	qcloudKey    = flag.String("qcloud_SecretId", "", "qcloud SecretId")
 	qcloudSecret = flag.String("qcloud_SecretKey", "", "qcloud SecretKey")
+
+	namesiloApiKey = flag.String("namesilo_apikey", "", "namesilo ApiKey")
 )
 
 var validationKey string
@@ -30,6 +34,7 @@ var domain string
 
 func main() {
 	flag.Parse()
+
 	if *h {
 		flag.Usage()
 		os.Exit(0)
@@ -38,6 +43,13 @@ func main() {
 		fmt.Println("Ver", ver)
 		os.Exit(0)
 	}
+
+	l, err := os.OpenFile(*logFile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0777)
+	if err != nil {
+		panic(err)
+	}
+	log.SetOutput(l)
+
 	log.Println("Auto dns record manage start")
 	parseCertbotPassedValue()
 	var p providers.Provider
@@ -47,9 +59,11 @@ func main() {
 		p = providers.NewAliyun(domain, *aliyunKey, *aliyunSecret)
 	case "qcloud":
 		p = providers.NewQcloud(domain, *qcloudKey, *qcloudSecret)
+	case "namesilo":
+		p = providers.NewNamesilo(domain, *namesiloApiKey)
 	default:
 		if *providerType == "" {
-			panic("--type must be your dns provider type, such as aliyun qcloud")
+			panic("--type must be your dns provider type, such as aliyun qcloud namesilo")
 		}
 		panic("Not support " + *providerType + " yet")
 	}
@@ -69,8 +83,15 @@ func run(p providers.Provider) {
 			log.Fatalln("Auto resolve txt record failed")
 		}
 		log.Println("Auto resolve txt record success")
-		log.Println("Time sleep 20s for record effective")
-		time.Sleep(time.Second * 20)
+		log.Println("Check if record effected")
+		for {
+			records, _ := net.LookupTXT("_acme-challenge." + domain)
+			if len(records) > 0 {
+				break
+			}
+			log.Println("Record not effected", records)
+			time.Sleep(time.Second * 20)
+		}
 		log.Println("feehi Hook finish")
 	case "delete":
 		log.Println("Will delete record TXT _acme-challenge ")
@@ -86,6 +107,7 @@ func run(p providers.Provider) {
 	default:
 		panic("action only support add or delete")
 	}
+	os.Exit(0)
 }
 
 func parseCertbotPassedValue() {
